@@ -21,7 +21,7 @@ def test_pid():
         angle = angle + com
         y.append(angle)
 
-    assert 29.5 <= y[len(y)-1] <= 30.5
+    assert 29.5 <= y[N - 1] <= 30.5
 
     fig, ax = plt.subplots()
     ax.plot(x, y, "r-")

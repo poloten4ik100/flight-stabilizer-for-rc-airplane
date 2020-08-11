@@ -30,6 +30,12 @@ PB4 | 12 | D12 | **4** | STABILIZER SWITCH (On/Off stabilizer)
 
 You can edit default constants in airplane.py: CHAN_ROLL, CHAN_PITCH, CHAN_VARIATOR, CHAN_STABILIZER_SWITCH
 
+In this file you can change the coefficients of the pid controller
+
+Alpha beta filter ratio changed by the variator (def. chan 3)
+
+In flight you can also turn off the flight stabilizer (def. chan 4)
+
 ### Launch
 
 ```

@@ -62,9 +62,7 @@ print("stab, k | angle, target, PID | angle, target, PID")
 
 while True:
 
-    counter = 0
     while not q.empty():
-        counter += 1
 
         chan, value = q.get()
 
@@ -75,7 +73,7 @@ while True:
         elif chan == CHAN_STABILIZER_SWITCH:
             stabilizer = controls[chan].switch(value)
         elif chan == CHAN_VARIATOR:
-            abfilter_k = controls[chan].variator(value, 0.01, 0.1)
+            abfilter_k = controls[chan].variator(value, 0.01, 0.9)
             filterRoll.k = abfilter_k
             filterPitch.k = abfilter_k
 
