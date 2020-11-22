@@ -1,6 +1,9 @@
 from multiprocessing import Process, Queue
 import json
 import math
+import sys
+import logging
+import time
 
 from adafruit_servokit import ServoKit
 
@@ -9,6 +12,12 @@ from pid import PID
 from serialReader import reader
 from control import Control
 from a_b_filter import ABFilter
+from indicator import Indicator
+
+
+FILE_NAME_LOG = "airplane.log"
+
+FILE_NAME_CALIBRATION = "controller.json"
 
 # Channel numbers
 CHAN_ROLL = 1
@@ -19,6 +28,11 @@ CHAN_STABILIZER_SWITCH = 4
 # the ports of the servos on PCA9685
 PORT_SERVO_ROLL = 0
 PORT_SERVO_PITCH = 1
+
+logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
+    filename=FILE_NAME_LOG,
+    level=logging.DEBUG)
+logging.info('airplane controller launch')
 
 # On/Off airplane stabilizer
 stabilizer: bool = False
@@ -36,11 +50,26 @@ abfilter_k: float = 0
 controll_roll: int = 0
 controll_pitch: int = 0
 
-kit = ServoKit(channels=16)
+#Led Init
+red = Indicator(24)
+green = Indicator(23, True)
+
+try:
+    kit = ServoKit(channels=16)
+except Exception as identifier:
+    logging.error("servo kit error: %s", identifier)
+    red.on()
+    sys.exit(1)
 
 controls = {}
 
-mpu = MPU6050()
+try:
+    mpu = MPU6050()
+except Exception as identifier:
+    logging.error("gyro/accell error: %s", identifier)
+    red.on()
+    green.on()
+    sys.exit(1)
 
 filterRoll = ABFilter(0.01)
 filterPitch = ABFilter(0.01)
@@ -50,17 +79,32 @@ uart_proc = Process(name='uart reader', target=reader, args=(q,))
 uart_proc.start()
 
 try:
-    with open('controller.json') as f:
+    with open(FILE_NAME_CALIBRATION) as f:
         channels = json.load(f)
         for ch_id, params in channels.items():
             controls.update({int(ch_id): Control(params[0], params[1])})
-except FileNotFoundError:
-    print("File not found")
+except Exception as identifier:
+    logging.error("calibration file open error: %s", identifier)
 
-print("                 Roll                Pitch       ")
-print("stab, k | angle, target, PID | angle, target, PID")
+#print("                   Roll                     Pitch          ")
+#print("stab, k   | tau, angle, target, PID | tau, angle, target, PID")
+
+logging.info('airplane controller started')
+
+logging.info("data updates every 1 second. format of data:")
+logging.info("                     Roll                     Pitch          ")
+logging.info("stab, k   | tau, angle, target, PID | tau, angle, target, PID")
+
+time_tmp = int(time.time())
 
 while True:
+
+    if stabilizer:
+        if green.state != "dblink":
+            green.blink_double()
+    else:
+        if green.state != "blink":
+            green.blink()
 
     while not q.empty():
 
@@ -77,13 +121,19 @@ while True:
             filterRoll.k = abfilter_k
             filterPitch.k = abfilter_k
 
-    gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z = mpu.get_data()
+    try:
+        gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z = mpu.get_data()
+    except Exception as identifier:
+        logging.error("gyro/accell reading error: %s", identifier)
+        red.on()
+        green.on()
+        sys.exit(1)
 
     roll = (math.atan2(accel_y, math.sqrt(accel_z ** 2 + accel_x ** 2)) * 180) / math.pi
     pitch = (math.atan2((-1) * accel_x, math.sqrt(accel_z ** 2 + accel_y ** 2)) * 180) / math.pi
 
-    value_roll = filterRoll.filter(gyro_x, roll)
-    value_pitch = filterPitch.filter(gyro_y, pitch)
+    value_roll, tau_roll = filterRoll.filter(gyro_x, roll)
+    value_pitch, tau_pitch = filterPitch.filter(gyro_y, pitch)
 
     if stabilizer:
         controll_roll = int(pid_roll.compute(target_roll, value_roll)) + 90
@@ -96,9 +146,27 @@ while True:
     if stabilizer:
         stab_status = "ON"
 
-    print(stab_status, abfilter_k, end=" | ")
-    print(value_roll, "   ", target_roll, "   ", controll_roll, end=" | ")
-    print(value_pitch, "    ", target_pitch, "    ", controll_pitch, end="     \r")
 
-    kit.servo[PORT_SERVO_ROLL].angle = controll_roll
-    kit.servo[PORT_SERVO_PITCH].angle = controll_pitch
+    if int(time.time()) > time_tmp:
+        logging.info("%s, k: %f | roll: %f, %f, %d, %d | pitch:  %f, %f, %f, %f",stab_status, 
+            "{:.3f}".format(abfilter_k),
+            "{:.3f}".format(tau_roll),
+            "{:.2f}".format(value_roll),
+            target_roll,
+            controll_roll,
+            "{:.3f}".format(tau_pitch),
+            "{:.2f}".format(value_pitch),
+            target_pitch,
+            controll_pitch)
+        time_tmp = int(time.time())
+    #print(stab_status, "{:.3f}".format(abfilter_k), end=" | ")
+    #print("{:.3f}".format(tau_roll) + "s", "{:.2f}".format(value_roll), "  ", target_roll, "  ", controll_roll, end=" | ")
+    #print("{:.3f}".format(tau_pitch) + "s", "{:.2f}".format(value_pitch), "  ", target_pitch, "  ", controll_pitch, end="     \r")
+
+    try:
+        kit.servo[PORT_SERVO_ROLL].angle = controll_roll
+        kit.servo[PORT_SERVO_PITCH].angle = controll_pitch
+    except Exception as identifier:
+        logging.error("servo kit set error: %s", identifier)
+        red.on()
+        sys.exit(1)

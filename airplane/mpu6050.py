@@ -63,18 +63,15 @@ class MPU6050:
     def get_data(self):
         ''' get angular velocity from gyro and acceleration from mpu6050 '''
 
-        try:
-            # Read Accelerometer raw value
-            accel_raw_x = self._read_raw_data(MPU6050.ACCEL_XOUT_H)
-            accel_raw_y = self._read_raw_data(MPU6050.ACCEL_YOUT_H)
-            accel_raw_z = self._read_raw_data(MPU6050.ACCEL_ZOUT_H)
+        # Read Accelerometer raw value
+        accel_raw_x = self._read_raw_data(MPU6050.ACCEL_XOUT_H)
+        accel_raw_y = self._read_raw_data(MPU6050.ACCEL_YOUT_H)
+        accel_raw_z = self._read_raw_data(MPU6050.ACCEL_ZOUT_H)
 
-            # Read Gyroscope raw value
-            gyro_raw_x = self._read_raw_data(MPU6050.GYRO_XOUT_H)
-            gyro_raw_y = self._read_raw_data(MPU6050.GYRO_YOUT_H)
-            gyro_raw_z = self._read_raw_data(MPU6050.GYRO_ZOUT_H)
-        except Exception:
-            return (0, 0)
+        # Read Gyroscope raw value
+        gyro_raw_x = self._read_raw_data(MPU6050.GYRO_XOUT_H)
+        gyro_raw_y = self._read_raw_data(MPU6050.GYRO_YOUT_H)
+        gyro_raw_z = self._read_raw_data(MPU6050.GYRO_ZOUT_H)
 
         # Full scale range +/- 16g (2048 LSB/g)
         accel_x = accel_raw_x / 2048.0

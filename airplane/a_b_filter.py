@@ -11,10 +11,10 @@ class ABFilter:
 
     def filter(self, gyro_val: float, accel_val: float) -> float:
         ''' filter val '''
-
-        self.__prev_value = (1 - self.__k) * (self.__prev_value + ((time.time() - self.__prev_time) * gyro_val)) + self.__k * accel_val
+        tau = time.time() - self.__prev_time
+        self.__prev_value = (1 - self.__k) * (self.__prev_value + (tau * gyro_val)) + self.__k * accel_val
         self.__prev_time = time.time()
-        return self.__prev_value
+        return self.__prev_value, tau
 
     @property
     def k(self):
