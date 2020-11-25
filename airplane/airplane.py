@@ -36,6 +36,8 @@ logging.info('airplane controller launch')
 
 # On/Off airplane stabilizer
 stabilizer: bool = False
+# On/Off airplane stabilizer
+stabilizer_mpu: bool = False
 
 # Control result in degress
 pid_roll: int = PID(2.53, 0.0001, 1.02)
@@ -92,10 +94,15 @@ except Exception as identifier:
 logging.info('airplane controller started')
 
 logging.info("data updates every 1 second. format of data:")
-logging.info("                     Roll                     Pitch          ")
-logging.info("stab, k   | tau, angle, target, PID | tau, angle, target, PID")
+logging.info("                             Roll                       Pitch          ")
+logging.info("stab,   k     |      tau, angle, tar, PID |        tau, angle, tar, PID")
 
-time_tmp = int(time.time())
+time_tmp = int(time.time() * 1000)
+
+tau_roll = 0
+tau_pitch = 0
+value_roll = 0
+value_pitch = 0
 
 while True:
 
@@ -120,22 +127,31 @@ while True:
             abfilter_k = controls[chan].variator(value, 0.01, 0.9)
             filterRoll.k = abfilter_k
             filterPitch.k = abfilter_k
+    if stabilizer:
+        try:
+            if not stabilizer_mpu:
+                mpu.init_device()
+            gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z = mpu.get_data()
+            stabilizer_mpu = True
+        except Exception as identifier:
+            if stabilizer_mpu:
+                logging.error("gyro/accell reading error: %s", identifier)
+            stabilizer_mpu = False
+            red.on()
+            green.on()
+            
+    else:
+        stabilizer_mpu = False
 
-    try:
-        gyro_x, gyro_y, gyro_z, accel_x, accel_y, accel_z = mpu.get_data()
-    except Exception as identifier:
-        logging.error("gyro/accell reading error: %s", identifier)
-        red.on()
-        green.on()
-        sys.exit(1)
-
-    roll = (math.atan2(accel_y, math.sqrt(accel_z ** 2 + accel_x ** 2)) * 180) / math.pi
-    pitch = (math.atan2((-1) * accel_x, math.sqrt(accel_z ** 2 + accel_y ** 2)) * 180) / math.pi
-
-    value_roll, tau_roll = filterRoll.filter(gyro_x, roll)
-    value_pitch, tau_pitch = filterPitch.filter(gyro_y, pitch)
+    stabilizer = stabilizer_mpu
 
     if stabilizer:
+        roll = (math.atan2(accel_y, math.sqrt(accel_z ** 2 + accel_x ** 2)) * 180) / math.pi
+        pitch = (math.atan2((-1) * accel_x, math.sqrt(accel_z ** 2 + accel_y ** 2)) * 180) / math.pi
+
+        value_roll, tau_roll = filterRoll.filter(gyro_x, roll)
+        value_pitch, tau_pitch = filterPitch.filter(gyro_y, pitch)
+
         controll_roll = int(pid_roll.compute(target_roll, value_roll)) + 90
         controll_pitch = int(pid_pitch.compute(target_pitch, value_pitch)) + 90
     else:
@@ -146,9 +162,9 @@ while True:
     if stabilizer:
         stab_status = "ON"
 
-
-    if int(time.time()) > time_tmp:
-        logging.info("%s, k: %f | roll: %f, %f, %d, %d | pitch:  %f, %f, %f, %f",stab_status, 
+    if int(time.time() * 1000) > time_tmp:
+        logging.info("%s, k: %s | roll: %s, %s, %d, %d | pitch:  %s, %s, %d, %d",
+            stab_status, 
             "{:.3f}".format(abfilter_k),
             "{:.3f}".format(tau_roll),
             "{:.2f}".format(value_roll),
@@ -158,7 +174,7 @@ while True:
             "{:.2f}".format(value_pitch),
             target_pitch,
             controll_pitch)
-        time_tmp = int(time.time())
+        time_tmp = int(time.time() * 1000) + 500
     #print(stab_status, "{:.3f}".format(abfilter_k), end=" | ")
     #print("{:.3f}".format(tau_roll) + "s", "{:.2f}".format(value_roll), "  ", target_roll, "  ", controll_roll, end=" | ")
     #print("{:.3f}".format(tau_pitch) + "s", "{:.2f}".format(value_pitch), "  ", target_pitch, "  ", controll_pitch, end="     \r")
@@ -169,4 +185,4 @@ while True:
     except Exception as identifier:
         logging.error("servo kit set error: %s", identifier)
         red.on()
-        sys.exit(1)
+        time.sleep(0.5)

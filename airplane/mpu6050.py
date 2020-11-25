@@ -19,6 +19,9 @@ class MPU6050:
     Device_Addr = 0x68  # MPU6050 device address
 
     def __init__(self):
+        self.init_device()
+    
+    def init_device(self):
         self.bus = smbus.SMBus(1)
 
         # Sample Rate Divider register
